@@ -45,26 +45,177 @@ const mockInsights = {
 
 export default function LiveConsultation() {
   const [isListening, setIsListening] = useState(false);
-  const [visibleLines, setVisibleLines] = useState(0);
-  const transcriptEndRef = useRef(null);
+  const [activeSpeaker, setActiveSpeaker] = useState("Doctor");
+  const [transcript, setTranscript] = useState([]);
+  const [statusText, setStatusText] = useState("Ready to start");
+  const [latency, setLatency] = useState(null);
 
-  
+  const transcriptEndRef = useRef(null);
+  const wsRef = useRef(null);
+  const streamRef = useRef(null);
+  const currentRecorderRef = useRef(null);
+  const isListeningRef = useRef(false);
+  const activeSpeakerRef = useRef("Doctor");
+
   useEffect(() => {
-    if (!isListening || visibleLines >= mockTranscriptScript.length) return;
-    const timer = setTimeout(() => {
-      setVisibleLines((v) => v + 1);
-    }, 1400);
-    return () => clearTimeout(timer);
-  }, [isListening, visibleLines]);
+    isListeningRef.current = isListening;
+  }, [isListening]);
+
+  useEffect(() => {
+    activeSpeakerRef.current = activeSpeaker;
+  }, [activeSpeaker]);
 
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [visibleLines]);
+  }, [transcript]);
 
-  const handleStart = () => {
-    setIsListening(true);
-    setVisibleLines(1);
+  const recordSegment = () => {
+    if (!isListeningRef.current || !streamRef.current || !wsRef.current) return;
+    if (wsRef.current.readyState !== WebSocket.OPEN) return;
+
+    try {
+      const options = MediaRecorder.isTypeSupported("audio/webm")
+        ? { mimeType: "audio/webm" }
+        : {};
+      const recorder = new MediaRecorder(streamRef.current, options);
+      currentRecorderRef.current = recorder;
+
+      recorder.ondataavailable = async (e) => {
+        if (e.data && e.data.size > 0 && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          const arrayBuffer = await e.data.arrayBuffer();
+          wsRef.current.send(arrayBuffer);
+        }
+      };
+
+      recorder.onstop = () => {
+        if (isListeningRef.current) {
+          recordSegment();
+        }
+      };
+
+      recorder.start();
+
+      setTimeout(() => {
+        if (recorder.state === "recording") {
+          recorder.stop();
+        }
+      }, 3500);
+    } catch (err) {
+      console.error("Error in recordSegment:", err);
+      setStatusText("Recording error");
+      stopListening();
+    }
   };
+
+  const startListening = async () => {
+    try {
+      setStatusText("Connecting to server...");
+      setTranscript([]);
+      setLatency(null);
+
+      const wsUrl = "ws://localhost:8000/api/ws/transcribe";
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = async () => {
+        setStatusText("Requesting microphone...");
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          streamRef.current = stream;
+          setIsListening(true);
+          setStatusText("Listening...");
+          recordSegment();
+        } catch (err) {
+          console.error("Microphone access error:", err);
+          setStatusText("Microphone access denied");
+          ws.close();
+        }
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "transcript" && data.text) {
+            const speaker = activeSpeakerRef.current;
+            setLatency(data.latency_ms);
+
+            setTranscript((prev) => {
+              if (prev.length === 0) {
+                return [{ speaker, text: data.text, timestamp: data.timestamp }];
+              }
+              const last = prev[prev.length - 1];
+              if (last.speaker === speaker) {
+                const updatedLast = {
+                  ...last,
+                  text: last.text.endsWith(".") || last.text.endsWith("?") || last.text.endsWith("!")
+                    ? `${last.text} ${data.text}`
+                    : `${last.text}. ${data.text}`
+                };
+                return [...prev.slice(0, -1), updatedLast];
+              } else {
+                return [...prev, { speaker, text: data.text, timestamp: data.timestamp }];
+              }
+            });
+          } else if (data.type === "error") {
+            console.error("API error:", data.message);
+          }
+        } catch (e) {
+          console.error("Error parsing WebSocket message:", e);
+        }
+      };
+
+      ws.onerror = (err) => {
+        console.error("WebSocket error:", err);
+        setStatusText("Connection error");
+      };
+
+      ws.onclose = () => {
+        console.log("WebSocket closed");
+        cleanup();
+      };
+    } catch (err) {
+      console.error("Error starting consultation:", err);
+      setStatusText("Failed to start");
+    }
+  };
+
+  const stopListening = () => {
+    setIsListening(false);
+    setStatusText("Ready to start");
+    cleanup();
+  };
+
+  const toggleListening = async () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      await startListening();
+    }
+  };
+
+  const cleanup = () => {
+    if (currentRecorderRef.current && currentRecorderRef.current.state !== "inactive") {
+      try {
+        currentRecorderRef.current.stop();
+      } catch (e) {}
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (wsRef.current) {
+      if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
+        wsRef.current.close();
+      }
+      wsRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      cleanup();
+    };
+  }, []);
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -131,46 +282,94 @@ export default function LiveConsultation() {
           </div>
 
           <button
-            onClick={handleStart}
-            disabled={isListening}
-            className="mt-6 w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold py-3 rounded-xl transition-colors"
+            onClick={toggleListening}
+            className={`mt-6 w-full flex items-center justify-center gap-2 text-sm font-bold py-3 rounded-xl transition-colors cursor-pointer ${
+              isListening
+                ? "bg-red-600 hover:bg-red-700 text-white"
+                : "bg-slate-900 hover:bg-slate-800 text-white"
+            }`}
           >
-            <Play className="w-4 h-4 fill-current" />
-            {isListening ? "Consultation In Progress" : "Start Consultation"}
+            {isListening ? (
+              <>
+                <span className="w-2.5 h-2.5 bg-white rounded-sm shrink-0" />
+                <span>Stop Consultation</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4 fill-current shrink-0" />
+                <span>Start Consultation</span>
+              </>
+            )}
           </button>
         </div>
 
         {/* Transcript */}
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 flex flex-col h-160">
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center justify-between gap-2 mb-4 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              {isListening ? (
+                <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+              ) : (
+                <span className="w-2.5 h-2.5 bg-slate-300 rounded-full" />
+              )}
+              <h3 className="font-bold text-slate-800 font-display text-sm">
+                {statusText}
+              </h3>
+            </div>
             {isListening && (
-              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+              <div className="flex items-center bg-slate-100 rounded-xl p-1 text-[11px] font-semibold">
+                <button
+                  onClick={() => setActiveSpeaker("Doctor")}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                    activeSpeaker === "Doctor"
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  Doctor
+                </button>
+                <button
+                  onClick={() => setActiveSpeaker("Patient")}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                    activeSpeaker === "Patient"
+                      ? "bg-[#007e7a] text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  Patient
+                </button>
+              </div>
             )}
-            <h3 className="font-bold text-slate-800 font-display">
-              {isListening ? "Listening..." : "Ready to start"}
-            </h3>
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-            {mockTranscriptScript.slice(0, visibleLines).map((line, i) => (
-              <div key={i}>
+            {transcript.map((line, i) => (
+              <div key={i} className="animate-fade-in">
                 <p
-                  className={`text-xs font-bold mb-1 ${
-                    line.speaker === "Doctor" ? "text-slate-700" : "text-[#007e7a]"
+                  className={`text-[10px] font-bold mb-0.5 uppercase tracking-wide ${
+                    line.speaker === "Doctor" ? "text-slate-500" : "text-[#007e7a]"
                   }`}
                 >
                   {line.speaker}
                 </p>
-                <p className="text-sm text-slate-600 leading-relaxed">{line.text}</p>
+                <p className="text-sm text-slate-700 leading-relaxed font-medium">{line.text}</p>
               </div>
             ))}
-            {!isListening && (
+            {transcript.length === 0 && (
               <p className="text-sm text-slate-400">
-                Transcript will appear here once the consultation starts.
+                {isListening
+                  ? "Waiting for speech... Speak into your microphone."
+                  : "Transcript will appear here once the consultation starts."}
               </p>
             )}
             <div ref={transcriptEndRef} />
           </div>
+
+          {latency !== null && isListening && (
+            <div className="text-[10px] text-slate-400 text-right mt-2 border-t border-slate-100 pt-2 font-medium">
+              API Latency: {latency}ms
+            </div>
+          )}
         </div>
 
         
