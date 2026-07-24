@@ -1,0 +1,84 @@
+Consultation Transcript
+Clinic: Sunrise Family Health Clinic
+Provider: Dr. Anita Rao, MD
+Patient: Mr. Rajesh Verma, 58 y/o Male
+Date: 2026-07-11
+Encounter Type: In-person, Follow-up
+
+---
+
+DR. RAO: Good morning, Mr. Verma. Please, have a seat. How have you been since your last visit?
+
+PATIENT: Morning, Doctor. Honestly, not great. My knees have been killing me for the past two weeks, and I've also been getting these headaches on and off.
+
+DR. RAO: Sorry to hear that. Let's start with the knee pain — can you describe it? Is it both knees?
+
+PATIENT: Both knees, yeah. Worse in the morning, gets a little better once I move around. I'd say it's a 6 out of 10 most days, sometimes worse if I've been standing a lot.
+
+DR. RAO: Any swelling, redness, or warmth around the joints?
+
+PATIENT: A little swelling in the left knee, no redness that I've noticed.
+
+DR. RAO: Okay. And what have you been taking for it?
+
+PATIENT: I've just been popping Ibuprofen, maybe 400mg, two or three times a day whenever it gets bad.
+
+DR. RAO: How many days a week would you say you're taking that?
+
+PATIENT: Most days, honestly. Probably five or six days a week for the last two weeks.
+
+DR. RAO: Got it. Now, remind me — you're on Losartan for your blood pressure, correct? 50mg once a day?
+
+PATIENT: Yes, that's right. Been on it for about three years now.
+
+DR. RAO: And are you taking anything else regularly? Any supplements?
+
+PATIENT: Just a multivitamin, and my wife got me on a potassium supplement a few months back because she read it's good for blood pressure.
+
+DR. RAO: Okay, that's important to know. How often are you taking the potassium supplement?
+
+PATIENT: Once a day, with breakfast.
+
+DR. RAO: Understood. Let's talk about the headaches — how often, and what do they feel like?
+
+PATIENT: Maybe three times this week. Dull, kind of pressure behind my eyes. I took a Paracetamol tablet yesterday and it helped a bit.
+
+DR. RAO: Do you drink alcohol regularly?
+
+PATIENT: A couple of beers on weekends, nothing heavy.
+
+DR. RAO: Alright. Let me check your blood pressure and do a quick knee exam.
+
+[Physical Examination]
+
+DR. RAO: Blood pressure today is 148 over 92, which is a bit elevated from your last visit of 132 over 84. Heart rate is 78, regular. On exam, mild swelling of the left knee, no significant redness or warmth, decent range of motion but some discomfort on flexion. Both knees show mild crepitus.
+
+PATIENT: Is the blood pressure okay?
+
+DR. RAO: It's higher than we'd like, and I have a concern here. You've been taking Ibuprofen fairly regularly for the last two weeks, and you're also on Losartan and a potassium supplement. NSAIDs like Ibuprofen can actually blunt the effect of Losartan and make it less effective at controlling your blood pressure — that could explain the elevated reading today. On top of that, combining Losartan with a potassium supplement already raises your potassium levels, and frequent NSAID use adds additional strain on your kidneys, which can push potassium even higher. That combination can be risky.
+
+PATIENT: Oh, I didn't realize that. So the Ibuprofen is part of the problem?
+
+DR. RAO: It's very likely contributing, yes. I'd like you to stop the regular Ibuprofen use for now. For the knee pain, let's switch you to Paracetamol on a scheduled basis — up to 500mg to 650mg, three to four times a day, but please don't combine it with any other cold or flu products that also contain acetaminophen, since that increases the risk of liver damage.
+
+PATIENT: Okay, no more Ibuprofen. What about the potassium supplement?
+
+DR. RAO: I'd like you to stop that as well for now, at least until we recheck your labs. With the Losartan on board, we don't want your potassium climbing any higher — in rare cases that can become dangerous for your heart rhythm.
+
+PATIENT: Got it, I'll stop that too.
+
+DR. RAO: I'm also going to order a basic metabolic panel to check your kidney function and potassium level, and I want to see you back in two weeks to recheck your blood pressure. If the knee pain is still significant after stopping the Ibuprofen, we can talk about other options, possibly a topical treatment instead of an oral one.
+
+PATIENT: That sounds good. And the headaches?
+
+DR. RAO: The scheduled Paracetamol should help with those as well, especially if they're tension-related. But if they get worse, come with fever, or you notice any vision changes, I want you to call the clinic right away.
+
+PATIENT: Understood, Doctor. Thank you.
+
+DR. RAO: Of course. So to summarize — stop the Ibuprofen, stop the potassium supplement, start scheduled Paracetamol for the knee pain and headaches, lab work before you leave today, and I'll see you back in two weeks. Any questions before we wrap up?
+
+PATIENT: No, I think that covers it. Thanks, Dr. Rao.
+
+DR. RAO: Take care, Mr. Verma. See you in two weeks.
+
+[End of Encounter]

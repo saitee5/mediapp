@@ -104,7 +104,7 @@ export default function Topbar({ doctorInfo, alertsCount = 0 }) {
         </div>
 
         <button
-          onClick={() => navigate("/live-scribe")}
+          onClick={() => navigate("/new-consultation")}
           className="flex items-center gap-2 bg-[#007e7a] hover:bg-[#005f5c] text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors shadow-sm"
         >
           <Headphones className="w-4 h-4" />

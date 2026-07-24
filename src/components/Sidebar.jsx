@@ -12,8 +12,8 @@ import {
 
 const navItems = [
   { to: "/Dashboard", label: "Dashboard", icon: LayoutGrid },
-  { to: "/patients/p001", label: "Patients", icon: Users },
-  { to: "/live-scribe", label: "Live Scribe", icon: Mic },
+  { to: "/patients", label: "Patients", icon: Users },
+  { to: "/new-consultation", label: "Live Scribe", icon: Mic },
   { to: "/soapnotes/n001", label: "SOAP Notes", icon: FileText },
 ];
 
@@ -58,7 +58,7 @@ export default function Sidebar({ doctorInfo }) {
     
       <div className="px-3 mb-4">
         <NavLink
-          to="/live-scribe"
+          to="/new-consultation"
           className="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold py-3 rounded-xl transition-colors"
         >
           <Plus className="w-4 h-4" />

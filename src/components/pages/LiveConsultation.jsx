@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Play,
   Activity,
@@ -44,6 +45,25 @@ const mockInsights = {
 };
 
 export default function LiveConsultation() {
+  const location = useLocation();
+  const statePatient = location.state?.patientData;
+
+  const parseCommaList = (str) => {
+    if (!str) return null;
+    const parsed = str.split(",").map((s) => s.trim()).filter(Boolean);
+    return parsed.length > 0 ? parsed : null;
+  };
+
+  const activePatient = {
+    ...mockPatient,
+    name: statePatient?.name || mockPatient.name,
+    age: statePatient?.age || mockPatient.age,
+    gender: statePatient?.gender || mockPatient.gender,
+    medicalHistory: parseCommaList(statePatient?.medicalHistory) || mockPatient.medicalHistory,
+    allergies: parseCommaList(statePatient?.allergies) || mockPatient.allergies,
+    activeMedications: parseCommaList(statePatient?.activeMedications) || mockPatient.activeMedications,
+  };
+
   const [isListening, setIsListening] = useState(false);
   const [activeSpeaker, setActiveSpeaker] = useState("Doctor");
   const [transcript, setTranscript] = useState([]);
@@ -87,19 +107,16 @@ export default function LiveConsultation() {
         }
       };
 
-      recorder.onstop = () => {
-        if (isListeningRef.current) {
-          recordSegment();
-        }
-      };
-
       recorder.start();
 
       setTimeout(() => {
+        if (isListeningRef.current) {
+          recordSegment(); // Start the next one immediately to prevent physical audio gaps
+        }
         if (recorder.state === "recording") {
           recorder.stop();
         }
-      }, 3500);
+      }, 4000);
     } catch (err) {
       console.error("Error in recordSegment:", err);
       setStatusText("Recording error");
@@ -123,6 +140,7 @@ export default function LiveConsultation() {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           streamRef.current = stream;
           setIsListening(true);
+          isListeningRef.current = true;
           setStatusText("Listening...");
           recordSegment();
         } catch (err) {
@@ -181,6 +199,7 @@ export default function LiveConsultation() {
 
   const stopListening = () => {
     setIsListening(false);
+    isListeningRef.current = false;
     setStatusText("Ready to start");
     cleanup();
   };
@@ -224,23 +243,23 @@ export default function LiveConsultation() {
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 flex flex-col">
           <div className="flex items-center gap-3 mb-1">
             <div className="w-14 h-14 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center text-base font-bold text-slate-500 shrink-0">
-              {mockPatient.avatarUrl ? (
-                <img src={mockPatient.avatarUrl} alt={mockPatient.name} className="w-full h-full object-cover" />
+              {activePatient.avatarUrl ? (
+                <img src={activePatient.avatarUrl} alt={activePatient.name} className="w-full h-full object-cover" />
               ) : (
-                mockPatient.name.split(" ").map((n) => n[0]).join("").slice(0, 2)
+                activePatient.name.split(" ").map((n) => n[0]).join("").slice(0, 2)
               )}
             </div>
             <div>
               <h2 className="font-bold text-slate-900 font-display text-lg leading-tight">
-                {mockPatient.name}
+                {activePatient.name}
               </h2>
               <p className="text-xs text-slate-500 font-medium">
-                {mockPatient.age} Years • {mockPatient.gender}
+                {activePatient.age} Years • {activePatient.gender}
               </p>
             </div>
           </div>
           <span className="self-start mt-1 mb-5 px-2.5 py-1 bg-[#e6f5f4] text-[#007e7a] text-[11px] font-bold rounded-full">
-            {mockPatient.room}
+            {activePatient.room}
           </span>
 
           <div className="space-y-5 flex-1">
@@ -249,7 +268,7 @@ export default function LiveConsultation() {
                 Medical History
               </p>
               <p className="text-sm text-slate-600 leading-relaxed">
-                {mockPatient.medicalHistory.join(", ")}
+                {activePatient.medicalHistory.join(", ")}
               </p>
             </div>
 
@@ -258,7 +277,7 @@ export default function LiveConsultation() {
                 Allergies
               </p>
               <div className="flex flex-wrap gap-2">
-                {mockPatient.allergies.map((a) => (
+                {activePatient.allergies.map((a) => (
                   <span
                     key={a}
                     className="px-2.5 py-1 bg-red-50 text-red-700 text-xs font-bold rounded-full border border-red-100"
@@ -274,10 +293,34 @@ export default function LiveConsultation() {
                 Active Medications
               </p>
               <ul className="text-sm text-slate-600 space-y-1">
-                {mockPatient.activeMedications.map((m) => (
+                {activePatient.activeMedications.map((m) => (
                   <li key={m}>{m}</li>
                 ))}
               </ul>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-2">
+                Real-Time Vitals
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {mockInsights.vitals.map((v) => (
+                  <div key={v.label} className="bg-slate-50 rounded-xl p-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      {v.label === "Heart Rate" ? (
+                        <HeartPulse className="w-3.5 h-3.5 text-red-500" />
+                      ) : (
+                        <Activity className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">
+                        {v.label}
+                      </span>
+                    </div>
+                    <p className="text-lg font-extrabold text-slate-900">{v.value}</p>
+                    <p className="text-[11px] font-semibold text-emerald-600">{v.status}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -352,11 +395,29 @@ export default function LiveConsultation() {
                 >
                   {line.speaker}
                 </p>
-                <p className="text-sm text-slate-700 leading-relaxed font-medium">{line.text}</p>
+                <p 
+                  className="text-sm text-slate-700 leading-relaxed font-medium focus:outline-none focus:bg-slate-50 px-1 -ml-1 rounded-md transition-colors"
+                  contentEditable={true}
+                  suppressContentEditableWarning={true}
+                  onBlur={(e) => {
+                    const newText = e.currentTarget.textContent;
+                    setTranscript((prev) => {
+                      const next = [...prev];
+                      next[i] = { ...next[i], text: newText };
+                      return next;
+                    });
+                  }}
+                >
+                  {line.text}
+                </p>
               </div>
             ))}
             {transcript.length === 0 && (
-              <p className="text-sm text-slate-400">
+              <p 
+                className="text-sm text-slate-400 focus:outline-none" 
+                contentEditable={true} 
+                suppressContentEditableWarning={true}
+              >
                 {isListening
                   ? "Waiting for speech... Speak into your microphone."
                   : "Transcript will appear here once the consultation starts."}
@@ -374,78 +435,17 @@ export default function LiveConsultation() {
 
         
         <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 flex flex-col">
-          <div className="flex items-center gap-2 mb-5">
-            <Sparkles className="w-4 h-4 text-[#007e7a]" />
-            <h3 className="font-bold text-slate-800 font-display">AI Insights</h3>
+          <div className="flex-1 flex flex-col items-center justify-center gap-4">
+            <Sparkles className="w-10 h-10 text-[#007e7a]" />
+            <h3 className="font-extrabold text-slate-800 font-display text-3xl tracking-tight text-center">
+              AI Insights
+            </h3>
           </div>
 
-          <div className="space-y-5 flex-1">
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-2">
-                Extracted Symptoms
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {mockInsights.symptoms.map((s) => (
-                  <span
-                    key={s}
-                    className="px-2.5 py-1 bg-[#e6f5f4] text-[#007e7a] text-xs font-bold rounded-full"
-                  >
-                    {s}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-2">
-                Possible Conditions
-              </p>
-              <div className="space-y-2">
-                {mockInsights.conditions.map((c) => (
-                  <div
-                    key={c.name}
-                    className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-xl"
-                  >
-                    <span className="text-sm font-semibold text-slate-700">{c.name}</span>
-                    <span className="text-xs font-bold text-[#007e7a]">{c.confidence}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-2">
-                Real-Time Vitals
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                {mockInsights.vitals.map((v) => (
-                  <div key={v.label} className="bg-slate-50 rounded-xl p-3">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      {v.label === "Heart Rate" ? (
-                        <HeartPulse className="w-3.5 h-3.5 text-red-500" />
-                      ) : (
-                        <Activity className="w-3.5 h-3.5 text-slate-400" />
-                      )}
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">
-                        {v.label}
-                      </span>
-                    </div>
-                    <p className="text-lg font-extrabold text-slate-900">{v.value}</p>
-                    <p className="text-[11px] font-semibold text-emerald-600">{v.status}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <button className="mt-6 w-full flex items-center justify-center gap-2 bg-[#007e7a] hover:bg-[#005f5c] text-white text-sm font-bold py-3 rounded-xl transition-colors">
+          <button className="w-full flex items-center justify-center gap-2 bg-[#007e7a] hover:bg-[#005f5c] text-white text-sm font-bold py-3 rounded-xl transition-colors mt-6">
             View Suggested Plan
             <ArrowRight className="w-4 h-4" />
           </button>
-
-          <p className="mt-4 text-[11px] text-slate-400 leading-relaxed">
-            AI model is monitoring for medication conflicts with Eliquis and Lisinopril based on patient's current symptoms.
-          </p>
         </div>
       </div>
     </div>

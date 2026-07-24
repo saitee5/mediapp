@@ -8,6 +8,8 @@ import PatientSummary from "./components/pages/PatientSummary";
 import AppLayout from "./Layouts/AppLayout";
 import Directives from "./components/pages/Directives";
 import History from "./components/pages/History";
+import NewConsultation from "./components/pages/NewConsultation";
+import PatientsList from "./components/pages/PatientsList";
 
 function App() {
   const [doctorInfo, setDoctorInfo] = useState(null);
@@ -41,8 +43,10 @@ function App() {
           }
         >
           <Route path="/Dashboard" element={<Dashboard />} />
+          <Route path="/new-consultation" element={<NewConsultation />} />
           <Route path="/soapnotes/:id" element={<SoapNoteEditor />} />
           <Route path="/live-scribe" element={<LiveConsultation />} />
+          <Route path="/patients" element={<PatientsList />} />
           <Route path="/patients/:id" element={<PatientSummary />} />
           <Route path="/directives" element={<Directives />} />
           <Route path="/History" element={<History />} />

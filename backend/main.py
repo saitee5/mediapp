@@ -54,12 +54,17 @@ async def websocket_transcribe(websocket: WebSocket):
     # Session variables
     audio_format = "webm" # Default format from React MediaRecorder
     model_name = "whisper-large-v3-turbo"
-    language = "en"
+    language = "hi"
+    last_text = ""
 
     try:
         while True:
             # Receive message from client (could be bytes audio chunk or text config)
             message = await websocket.receive()
+            
+            if message.get("type") == "websocket.disconnect":
+                logger.info("Received websocket.disconnect message")
+                break
 
             if "text" in message and message["text"]:
                 # Handle control/config JSON messages
@@ -69,7 +74,7 @@ async def websocket_transcribe(websocket: WebSocket):
                     if data.get("type") == "config":
                         audio_format = data.get("format", "webm")
                         model_name = data.get("model", "whisper-large-v3-turbo")
-                        language = data.get("language", "en")
+                        language = data.get("language", "hi")
                         logger.info(f"Updated session config: format={audio_format}, model={model_name}, lang={language}")
                         await websocket.send_json({"type": "config_ack", "status": "success"})
                 except Exception as e:
@@ -98,11 +103,18 @@ async def websocket_transcribe(websocket: WebSocket):
                     }
                     if language and language != "auto":
                         kwargs["language"] = language
+                    if last_text:
+                        kwargs["prompt"] = last_text[-200:]
 
                     transcription = await groq_client.audio.transcriptions.create(**kwargs)
 
                     latency_ms = round((time.time() - start_time) * 1000)
                     text = transcription.text.strip()
+                    if text:
+                        last_text = text
+                    
+                    # Log for debugging
+                    logger.info(f"Transcribed text: {text}")
 
                     # Send transcribed text back to frontend
                     await websocket.send_json({
