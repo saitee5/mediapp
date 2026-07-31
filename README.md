@@ -1,5 +1,5 @@
 <div align="center">
-  <h1><span style="color: black;">medi</span><span style="color: blue; font-family: cursive;">Scribe</span></h1>
+  <img src="./public/mediscribe_logo.png" alt="mediScribe Logo" width="300">
   <p><strong>Ambient Clinical Scribe & AI Medical Assistant</strong></p>
   <p><em>Reducing Documentation Burnout Through Ambient Intelligence</em></p>
 </div>
