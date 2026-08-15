@@ -1,19 +1,24 @@
 version: '3.8'
 
 services:
-  mediscribe-api:
+  mediscribe-backend:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: mediscribe-backend
     ports:
       - "8000:8000"
     env_file:
       - .env
     environment:
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - HOST=0.0.0.0
       - PORT=8000
+      - HOST=0.0.0.0
+      - DEFAULT_LLM_MODEL=${DEFAULT_LLM_MODEL:-gemini-2.5-flash}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - SUPABASE_STORAGE_BUCKET=${SUPABASE_STORAGE_BUCKET:-case-sheets}
     volumes:
       - .:/app
-      - ./logs:/app/logs
     restart: unless-stopped

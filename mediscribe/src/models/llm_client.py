@@ -16,15 +16,34 @@ class LLMClientManager:
     ):
         """
         Returns a Chat model configured for structured output.
-        Prioritizes ChatVertexAI (as in main_pipeline_demo.ipynb), with
-        graceful fallback to ChatGoogleGenerativeAI or ChatGroq.
+        - If GOOGLE_API_KEY or GEMINI_API_KEY is provided, uses Google AI Studio (ChatGoogleGenerativeAI).
+        - If Google Cloud ADC is active, uses Vertex AI (ChatVertexAI).
+        - If GROQ_API_KEY is provided, falls back to ChatGroq.
         """
         model = model_name or settings.DEFAULT_LLM_MODEL
         key = f"{model}:{temperature}"
         if key in cls._chat_instances:
             return cls._chat_instances[key]
 
-        # 1. Try ChatVertexAI (preferred in notebook)
+        google_key = settings.GOOGLE_API_KEY or settings.GEMINI_API_KEY or os.getenv("GOOGLE_API_KEY", "") or os.getenv("GEMINI_API_KEY", "")
+
+        # 1. If Google AI Studio API key is provided, use ChatGoogleGenerativeAI
+        if google_key:
+            try:
+                from langchain_google_genai import ChatGoogleGenerativeAI
+                gemini_model = model if "gemini" in model else "gemini-2.5-flash"
+                llm = ChatGoogleGenerativeAI(
+                    model=gemini_model,
+                    temperature=temperature,
+                    google_api_key=google_key,
+                )
+                logger.info(f"Initialized Google AI Studio LLM (ChatGoogleGenerativeAI) with model={gemini_model}")
+                cls._chat_instances[key] = llm
+                return llm
+            except Exception as genai_err:
+                logger.warning(f"ChatGoogleGenerativeAI initialization error: {genai_err}")
+
+        # 2. Try ChatVertexAI (Google Cloud Application Default Credentials)
         try:
             from langchain_google_vertexai import ChatVertexAI
             llm = ChatVertexAI(
@@ -38,22 +57,6 @@ class LLMClientManager:
         except Exception as vertex_err:
             logger.warning(f"ChatVertexAI initialization warning: {vertex_err}")
 
-        # 2. Try ChatGoogleGenerativeAI with API Key
-        google_key = settings.GOOGLE_API_KEY or settings.GEMINI_API_KEY or os.getenv("GOOGLE_API_KEY", "")
-        if google_key:
-            try:
-                from langchain_google_genai import ChatGoogleGenerativeAI
-                llm = ChatGoogleGenerativeAI(
-                    model=model if "gemini" in model else "gemini-2.5-flash",
-                    temperature=temperature,
-                    google_api_key=google_key,
-                )
-                logger.info(f"Initialized ChatGoogleGenerativeAI LLM with API key.")
-                cls._chat_instances[key] = llm
-                return llm
-            except Exception as genai_err:
-                logger.warning(f"ChatGoogleGenerativeAI initialization warning: {genai_err}")
-
         # 3. Fallback to ChatGroq if GROQ_API_KEY is available
         if settings.GROQ_API_KEY:
             try:
@@ -64,7 +67,7 @@ class LLMClientManager:
                     temperature=temperature,
                     groq_api_key=settings.GROQ_API_KEY,
                 )
-                logger.info(f"Initialized ChatGroq fallback LLM model={groq_model}.")
+                logger.info(f"Initialized ChatGroq fallback LLM model={groq_model}")
                 cls._chat_instances[key] = llm
                 return llm
             except Exception as groq_err:
@@ -108,5 +111,3 @@ def get_chat_groq(
 def get_groq_client():
     """Convenience function to get the shared AsyncGroq client."""
     return LLMClientManager.get_groq_client()
-
-
