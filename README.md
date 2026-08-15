@@ -125,9 +125,19 @@ cp .env.example .env
 
 Add your credentials to `mediscribe/.env`:
 ```env
+# Google AI Studio API Key (from https://aistudio.google.com/)
+GOOGLE_API_KEY=your_google_ai_studio_api_key_here
 DEFAULT_LLM_MODEL=gemini-2.5-flash
+
+# Supabase Credentials (from Supabase Settings > API)
 SUPABASE_URL=https://your-project-id.supabase.co
 SUPABASE_KEY=your-supabase-key
+SUPABASE_STORAGE_BUCKET=case-sheets
+
+# Optional Groq Key
+GROQ_API_KEY=your_groq_api_key_here
+
+# Server Settings
 PORT=8000
 HOST=0.0.0.0
 ```
@@ -138,6 +148,9 @@ python main.py
 ```
 - **Backend API**: `http://localhost:8000`
 - **Interactive Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **ReDoc Documentation**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+- **Offline HTML Docs**: View [`api_documentation.html`](file:///c:/Users/anshy/Documents/mediapp/api_documentation.html) in any browser without running a server.
+
 
 ---
 

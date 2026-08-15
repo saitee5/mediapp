@@ -100,28 +100,58 @@ In your [Supabase Dashboard](https://supabase.com/dashboard) SQL Editor, execute
 - Creates public `case-sheets` storage bucket for PDF files.
 
 ### 4. Configure Environment Variables
-Create a `.env` file in `mediscribe/`:
+Copy the template file to `.env`:
+
+```bash
+cp .env.example .env
+```
+
+Fill in your configuration in `mediscribe/.env`:
 
 ```env
-# LLM Provider
-DEFAULT_LLM_MODEL=gemini-2.5-flash
-GROQ_API_KEY=your_groq_api_key_if_using_groq
+# ==============================================================================
+# MediScribe AI Agent Environment Configuration
+# ==============================================================================
 
-# Supabase
+# 1. LLM API Key (Google AI Studio key from https://aistudio.google.com/)
+GOOGLE_API_KEY=your_google_ai_studio_api_key_here
+DEFAULT_LLM_MODEL=gemini-2.5-flash
+
+# Optional Vertex AI location (if using Google Cloud ADC instead of API key)
+DEFAULT_VERTEX_LOCATION=global
+
+# 2. Supabase Database & Storage Configuration (from Supabase Settings > API)
 SUPABASE_URL=https://your-project-id.supabase.co
-SUPABASE_KEY=your_supabase_anon_or_service_key
+SUPABASE_KEY=your_supabase_anon_or_service_role_key
 SUPABASE_STORAGE_BUCKET=case-sheets
 
-# Server Configuration
+# 3. Optional Groq Configuration (for Whisper transcription fallback)
+GROQ_API_KEY=your_groq_api_key_here
+DEFAULT_WHISPER_MODEL=whisper-large-v3-turbo
+
+# 4. Server Settings
 PORT=8000
 HOST=0.0.0.0
-DEBUG=True
+ENV=development
+DEBUG=true
 ```
+
+| Variable | Required | Description |
+|---|:---:|---|
+| `GOOGLE_API_KEY` | **Yes** (or Groq/Vertex) | API Key from [Google AI Studio](https://aistudio.google.com/) |
+| `DEFAULT_LLM_MODEL` | No | Default model (`gemini-2.5-flash`) |
+| `SUPABASE_URL` | **Yes** | Your Supabase project URL (`https://<project>.supabase.co`) |
+| `SUPABASE_KEY` | **Yes** | Supabase `anon` public key or `service_role` key |
+| `SUPABASE_STORAGE_BUCKET`| No | Storage bucket name for PDFs (default: `case-sheets`) |
+| `GROQ_API_KEY` | No | Optional API key for Groq LLM / Whisper audio models |
+| `PORT` | No | Server port (default: `8000`) |
+| `HOST` | No | Host bind address (default: `0.0.0.0`) |
 
 ### 5. Run the Server
 ```bash
 python main.py
 ```
+
 
 - **Interactive Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
 - **ReDoc Documentation**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
