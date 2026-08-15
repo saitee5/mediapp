@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MediScribe AI Agent - ReDoc API Documentation</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="https://fastapi.tiangolo.com/img/favicon.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+        #redoc-container {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="redoc-container"></div>
+    <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+    <script>
+        const spec = {
+  "openapi": "3.1.0",
+  "info": {
+    "title": "MediScribe AI Agent API",
+    "description": "Clinical speech-to-text, SOAP extraction, and patient case sheet generation AI agent",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "summary": "Health Check",
+        "description": "Health check endpoint providing status of LLM and Supabase.",
+        "operationId": "health_check_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthCheckResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/generate-summary": {
+      "post": {
+        "summary": "Generate Summary",
+        "description": "Step 1:\n- Receives conversation transcript\n- Runs exact 2-agent LangGraph pipeline (SOAPExtractionAgent -> CaseSheetSummaryGen)\n- Saves initial summary in Supabase with status 'pending_review'\n- Returns Case Study Summary to frontend for review",
+        "operationId": "generate_summary_api_generate_summary_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateSummaryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateSummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/update-summary": {
+      "post": {
+        "summary": "Update Case Study Summary",
+        "description": "Step 2:\n- Receives updated / validated case_study_summary from frontend\n- Updates database record in Supabase with updated_case_sheet_summary\n- Sets status to 'reviewed'\n- Returns updated summary confirmation",
+        "operationId": "update_case_study_summary_api_update_summary_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSummaryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateSummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/generate-pdf": {
+      "post": {
+        "summary": "Generate Pdf",
+        "description": "Step 3:\n- Takes only session_id\n- Fetches the last stored case study summary from the database\n- Generates formatted hospital PDF\n- Uploads PDF to Supabase Storage bucket ('case-sheets')\n- Updates database record with public pdf_url\n- Returns public Supabase PDF URL and backend download URL",
+        "operationId": "generate_pdf_api_generate_pdf_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneratePDFRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneratePDFResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/consultation/{session_id}/download-pdf": {
+      "get": {
+        "summary": "Download Consultation Pdf",
+        "description": "Download endpoint: Returns the PDF as an attachment download from backend.",
+        "operationId": "download_consultation_pdf_api_consultation__session_id__download_pdf_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/consultation/{session_id}/pdf": {
+      "get": {
+        "summary": "View Consultation Pdf",
+        "description": "View endpoint: Streams the PDF inline for browser viewing.",
+        "operationId": "view_consultation_pdf_api_consultation__session_id__pdf_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/consultation/{session_id}": {
+      "get": {
+        "summary": "Get Consultation",
+        "description": "Retrieves full consultation record, SOAP data, case study summaries, and PDF links from Supabase.",
+        "operationId": "get_consultation_api_consultation__session_id__get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultationDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/consultations": {
+      "get": {
+        "summary": "List Consultations",
+        "description": "Lists recent consultations stored in Supabase.",
+        "operationId": "list_consultations_api_consultations_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AdministrativeData": {
+        "properties": {
+          "encounter_details": {
+            "$ref": "#/components/schemas/EncounterDetails"
+          },
+          "participants": {
+            "$ref": "#/components/schemas/Participants"
+          }
+        },
+        "type": "object",
+        "required": [
+          "encounter_details",
+          "participants"
+        ],
+        "title": "AdministrativeData"
+      },
+      "AssessmentPlan": {
+        "properties": {
+          "diagnoses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Diagnoses",
+            "description": "Primary and secondary diagnoses or impressions."
+          },
+          "orders_prescriptions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Orders Prescriptions",
+            "description": "New medications prescribed, dosages, durations."
+          },
+          "lab_imaging_orders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lab Imaging Orders",
+            "description": "Tests the patient needs to get done."
+          },
+          "patient_instructions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Patient Instructions",
+            "description": "Advice given to the patient regarding care at home, diet, or symptom monitoring."
+          },
+          "follow_up": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Follow Up",
+            "description": "When the patient should return."
+          }
+        },
+        "type": "object",
+        "title": "AssessmentPlan"
+      },
+      "CaseSheetSummary": {
+        "properties": {
+          "patient_name": {
+            "type": "string",
+            "title": "Patient Name",
+            "description": "Patient Name"
+          },
+          "gender": {
+            "type": "string",
+            "title": "Gender",
+            "description": "Gender (e.g. Male, Female, Unknown)"
+          },
+          "age": {
+            "type": "string",
+            "title": "Age",
+            "description": "Age in years, months, days if possible, or just Years"
+          },
+          "patient_no": {
+            "type": "string",
+            "title": "Patient No",
+            "description": "A random or generated Patient No."
+          },
+          "doctor": {
+            "type": "string",
+            "title": "Doctor",
+            "description": "Doctor's name"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date",
+            "description": "Date and time of visit"
+          },
+          "chief_complaints": {
+            "type": "string",
+            "title": "Chief Complaints",
+            "description": "Chief complaints summarized"
+          },
+          "vitals": {
+            "type": "string",
+            "title": "Vitals",
+            "description": "Vitals formatted nicely (e.g. Pulse: 99 bpm, BP: 135/95 mmHg...)"
+          },
+          "examination_findings": {
+            "type": "string",
+            "title": "Examination Findings",
+            "description": "Summary of examination findings"
+          },
+          "investigations": {
+            "type": "string",
+            "title": "Investigations",
+            "description": "Ordered tests or labs (e.g. BMP, MRI...)"
+          },
+          "diagnosis": {
+            "type": "string",
+            "title": "Diagnosis",
+            "description": "Diagnosis"
+          },
+          "prescriptions": {
+            "items": {
+              "$ref": "#/components/schemas/PrescriptionItem"
+            },
+            "type": "array",
+            "title": "Prescriptions",
+            "description": "List of prescribed medicines"
+          },
+          "treatment_plan": {
+            "type": "string",
+            "title": "Treatment Plan",
+            "description": "Summary of treatment plan"
+          },
+          "therapy_description": {
+            "type": "string",
+            "title": "Therapy Description",
+            "description": "Therapy required, or None"
+          },
+          "therapy_result": {
+            "type": "string",
+            "title": "Therapy Result",
+            "description": "Result of therapy, or N/A"
+          },
+          "notes": {
+            "type": "string",
+            "title": "Notes",
+            "description": "Additional clinical notes"
+          },
+          "instructions": {
+            "type": "string",
+            "title": "Instructions",
+            "description": "Instructions to the patient (e.g. Avoid sweets, Return in 2 weeks)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "patient_name",
+          "gender",
+          "age",
+          "patient_no",
+          "doctor",
+          "date",
+          "chief_complaints",
+          "vitals",
+          "examination_findings",
+          "investigations",
+          "diagnosis",
+          "treatment_plan",
+          "therapy_description",
+          "therapy_result",
+          "notes",
+          "instructions"
+        ],
+        "title": "CaseSheetSummary"
+      },
+      "ClinicalSOAPExtraction": {
+        "properties": {
+          "administrative_data": {
+            "$ref": "#/components/schemas/AdministrativeData"
+          },
+          "subjective": {
+            "$ref": "#/components/schemas/Subjective"
+          },
+          "objective": {
+            "$ref": "#/components/schemas/Objective"
+          },
+          "assessment_plan": {
+            "$ref": "#/components/schemas/AssessmentPlan"
+          }
+        },
+        "type": "object",
+        "required": [
+          "administrative_data",
+          "subjective",
+          "objective",
+          "assessment_plan"
+        ],
+        "title": "ClinicalSOAPExtraction"
+      },
+      "ConsultationDetailResponse": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "patient_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patient Id"
+          },
+          "patient_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patient Name"
+          },
+          "doctor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doctor Name"
+          },
+          "encounter_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Encounter Date"
+          },
+          "transcript": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript"
+          },
+          "soap": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClinicalSOAPExtraction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "case_sheet_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaseSheetSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_case_sheet_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CaseSheetSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pdf_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pdf Url",
+            "description": "Public Supabase storage URL for PDF"
+          },
+          "download_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Download Url",
+            "description": "Backend download URL"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "status"
+        ],
+        "title": "ConsultationDetailResponse"
+      },
+      "EncounterDetails": {
+        "properties": {
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date",
+            "description": "Date of the encounter"
+          },
+          "time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time",
+            "description": "Time of the encounter"
+          },
+          "location_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Type",
+            "description": "Location type (e.g., telehealth, clinic, ER)"
+          }
+        },
+        "type": "object",
+        "title": "EncounterDetails"
+      },
+      "GeneratePDFRequest": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "description": "The consultation session ID to generate PDF for"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "title": "GeneratePDFRequest"
+      },
+      "GeneratePDFResponse": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "pdf_url": {
+            "type": "string",
+            "title": "Pdf Url",
+            "description": "Public URL to the PDF stored in Supabase Storage"
+          },
+          "download_url": {
+            "type": "string",
+            "title": "Download Url",
+            "description": "Backend endpoint to download the PDF directly"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "PDF generated and uploaded successfully."
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "status",
+          "pdf_url",
+          "download_url"
+        ],
+        "title": "GeneratePDFResponse"
+      },
+      "GenerateSummaryRequest": {
+        "properties": {
+          "transcript": {
+            "type": "string",
+            "title": "Transcript",
+            "description": "The raw conversation transcript to process."
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id",
+            "description": "Optional custom session or consultation ID."
+          },
+          "patient_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patient Id",
+            "description": "Optional patient ID reference."
+          }
+        },
+        "type": "object",
+        "required": [
+          "transcript"
+        ],
+        "title": "GenerateSummaryRequest"
+      },
+      "GenerateSummaryResponse": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Status: pending_review",
+            "default": "pending_review"
+          },
+          "case_study_summary": {
+            "$ref": "#/components/schemas/CaseSheetSummary",
+            "description": "Generated Case Study Summary for frontend review"
+          },
+          "soap": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClinicalSOAPExtraction"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Extracted SOAP clinical concepts"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "Case study summary generated successfully. Ready for frontend review."
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "case_study_summary"
+        ],
+        "title": "GenerateSummaryResponse"
+      },
+      "HPI": {
+        "properties": {
+          "onset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Onset",
+            "description": "When did the symptom start?"
+          },
+          "provocation_palliation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provocation Palliation",
+            "description": "What makes it better or worse?"
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality",
+            "description": "How does it feel? (e.g., dull, sharp, burning)"
+          },
+          "region_radiation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region Radiation",
+            "description": "Where is it located? Does it radiate?"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Severity",
+            "description": "How bad is it? (e.g., 6/10)"
+          },
+          "time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time",
+            "description": "How often does it happen or how long does it last?"
+          }
+        },
+        "type": "object",
+        "title": "HPI"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthCheckResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "llm_configured": {
+            "type": "boolean",
+            "title": "Llm Configured"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "supabase_configured": {
+            "type": "boolean",
+            "title": "Supabase Configured"
+          },
+          "agent_ready": {
+            "type": "boolean",
+            "title": "Agent Ready",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "llm_configured",
+          "model",
+          "supabase_configured"
+        ],
+        "title": "HealthCheckResponse"
+      },
+      "Objective": {
+        "properties": {
+          "vitals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Vitals",
+            "description": "Temperature, blood pressure, heart rate, weight, etc."
+          },
+          "physical_exam_findings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Physical Exam Findings",
+            "description": "Observations made or dictated by the physician (e.g., lungs clear, mild swelling)."
+          },
+          "diagnostic_results": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Diagnostic Results",
+            "description": "Any rapid labs or imaging results discussed."
+          }
+        },
+        "type": "object",
+        "title": "Objective"
+      },
+      "Participants": {
+        "properties": {
+          "patient_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Patient Name",
+            "description": "Patient name or demographics"
+          },
+          "provider_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Name",
+            "description": "Provider name and role"
+          }
+        },
+        "type": "object",
+        "title": "Participants"
+      },
+      "PrescriptionItem": {
+        "properties": {
+          "medicine": {
+            "type": "string",
+            "title": "Medicine",
+            "description": "Name of the medicine"
+          },
+          "dosage": {
+            "type": "string",
+            "title": "Dosage",
+            "description": "Dosage instructions (e.g., 0-0-1 After Food)"
+          },
+          "duration": {
+            "type": "string",
+            "title": "Duration",
+            "description": "Duration of the medicine (e.g., 3 Days (Tot: 3 TAB))"
+          }
+        },
+        "type": "object",
+        "required": [
+          "medicine",
+          "dosage",
+          "duration"
+        ],
+        "title": "PrescriptionItem"
+      },
+      "Subjective": {
+        "properties": {
+          "chief_complaint": {
+            "type": "string",
+            "title": "Chief Complaint",
+            "description": "The primary reason for the visit in the patient's own words."
+          },
+          "hpi": {
+            "$ref": "#/components/schemas/HPI",
+            "description": "History of Present Illness"
+          },
+          "past_medical_history": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Past Medical History",
+            "description": "Pre-existing conditions mentioned."
+          },
+          "medications": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Medications",
+            "description": "Current prescriptions and over-the-counter drugs."
+          },
+          "allergies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Allergies",
+            "description": "Any mentioned allergies or adverse reactions."
+          },
+          "social_family_history": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Social Family History",
+            "description": "Smoking, alcohol, occupational hazards, relevant family conditions."
+          },
+          "review_of_systems": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Review Of Systems",
+            "description": "Any other symptoms asked about and whether the patient affirmed or denied them."
+          }
+        },
+        "type": "object",
+        "required": [
+          "chief_complaint",
+          "hpi"
+        ],
+        "title": "Subjective"
+      },
+      "UpdateSummaryRequest": {
+        "properties": {
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id",
+            "description": "Session ID (if not passed in path)"
+          },
+          "updated_case_study_summary": {
+            "$ref": "#/components/schemas/CaseSheetSummary",
+            "description": "The updated / reviewed Case Study Summary from frontend"
+          }
+        },
+        "type": "object",
+        "required": [
+          "updated_case_study_summary"
+        ],
+        "title": "UpdateSummaryRequest"
+      },
+      "UpdateSummaryResponse": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "reviewed"
+          },
+          "updated_case_study_summary": {
+            "$ref": "#/components/schemas/CaseSheetSummary"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "Case study summary successfully updated in database."
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "updated_case_study_summary"
+        ],
+        "title": "UpdateSummaryResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+};
+        Redoc.init(spec, {
+            scrollYOffset: 50,
+            expandResponses: "200,201",
+            hideDownloadButton: false,
+            theme: {
+                colors: {
+                    primary: {
+                        main: '#0284c7'
+                    },
+                    success: {
+                        main: '#10b981'
+                    }
+                },
+                typography: {
+                    fontFamily: 'Inter, sans-serif',
+                    headings: {
+                        fontFamily: 'Inter, sans-serif',
+                        fontWeight: '600'
+                    },
+                    code: {
+                        fontFamily: 'JetBrains Mono, monospace'
+                    }
+                },
+                sidebar: {
+                    backgroundColor: '#f8fafc',
+                    textColor: '#1e293b'
+                }
+            }
+        }, document.getElementById('redoc-container'));
+    </script>
+</body>
+</html>
