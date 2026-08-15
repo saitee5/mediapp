@@ -10,6 +10,7 @@ import Directives from "./components/pages/Directives";
 import History from "./components/pages/History";
 import NewConsultation from "./components/pages/NewConsultation";
 import PatientsList from "./components/pages/PatientsList";
+import SuggestedPlanMock from "./components/pages/SuggestedPlanMock";
 
 function App() {
   const [doctorInfo, setDoctorInfo] = useState(null);
@@ -50,6 +51,7 @@ function App() {
           <Route path="/patients/:id" element={<PatientSummary />} />
           <Route path="/directives" element={<Directives />} />
           <Route path="/History" element={<History />} />
+          <Route path="/suggested-plan" element={<SuggestedPlanMock />} />
         </Route>
       </Routes>
     </BrowserRouter>

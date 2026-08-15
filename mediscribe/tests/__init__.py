@@ -1,0 +1,3 @@
+"""
+MediScribe Test Suite
+"""

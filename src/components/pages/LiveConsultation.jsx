@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Play,
   Activity,
@@ -46,6 +46,7 @@ const mockInsights = {
 
 export default function LiveConsultation() {
   const location = useLocation();
+  const navigate = useNavigate();
   const statePatient = location.state?.patientData;
 
   const parseCommaList = (str) => {
@@ -442,7 +443,9 @@ export default function LiveConsultation() {
             </h3>
           </div>
 
-          <button className="w-full flex items-center justify-center gap-2 bg-[#007e7a] hover:bg-[#005f5c] text-white text-sm font-bold py-3 rounded-xl transition-colors mt-6">
+          <button 
+            onClick={() => navigate('/suggested-plan')}
+            className="w-full flex items-center justify-center gap-2 bg-[#007e7a] hover:bg-[#005f5c] text-white text-sm font-bold py-3 rounded-xl transition-colors mt-6">
             View Suggested Plan
             <ArrowRight className="w-4 h-4" />
           </button>

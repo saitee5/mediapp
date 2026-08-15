@@ -46,10 +46,10 @@ Launch the mediScribe stack in minutes on any local system using Docker Compose.
 
 ### 1. Setup Your Environment
 
-Navigate to the `backend` directory and create your environment file:
+Navigate to the `mediscribe` directory and create your environment file:
 
 ```bash
-cd backend
+cd mediscribe
 cp .env.example .env
 ```
 Add your Groq API Key to the `.env` file:
