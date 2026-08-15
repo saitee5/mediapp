@@ -1,6 +1,29 @@
-# MediScribe - AI Clinical Agent (Powered by LangGraph)
+# MediScribe Backend - AI Clinical Agent & API
 
-MediScribe is an AI-powered clinical documentation and consultation assistant built on **LangGraph**. It processes real-time consultation audio via WebSockets using Groq Whisper (`whisper-large-v3-turbo`), orchestrates multi-step clinical reasoning (`extract_soap` -> `clinical_validation` -> `synthesize_case_sheet` -> `audit_case_sheet`) via LangGraph StateGraphs, and provides interactive clinical decision support with tool calling.
+MediScribe Backend is an AI-powered clinical intelligence and documentation pipeline built with **FastAPI**, **LangGraph**, and **Supabase**. It transforms raw doctor-patient conversation transcripts into structured clinical **SOAP notes** and professional **Case Sheet Summaries**, allows doctors to review and update records, and automatically generates formatted PDF reports uploaded directly to Supabase Storage.
+
+---
+
+## 🏗️ Architecture & Pipeline
+
+The backend orchestrates a 2-agent LangGraph workflow:
+
+```mermaid
+flowchart TD
+    A[Raw Consultation Transcript] --> B[Agent 1: SOAPExtractionAgent]
+    B -->|Structured Clinical SOAP Data| C[Agent 2: CaseSheetSummaryGen]
+    C -->|Synthesized Case Study Summary| D[(Supabase Database)]
+    D -->|Initial State: pending_review| E[Frontend Doctor Review]
+    E -->|Updated / Validated Summary| F[(Supabase Database - status: reviewed)]
+    F --> G[CaseSheetPDF Generator]
+    G --> H[(Supabase Storage Bucket: case-sheets)]
+    H --> I[Public PDF URL & Download Endpoint]
+```
+
+1. **Agent 1 (`SOAPExtractionAgent`)**: Extracts structured clinical concepts (`EncounterDetails`, `Participants`, `HPI`, `Subjective`, `Objective`, `AssessmentPlan`) using structured LLM outputs.
+2. **Agent 2 (`CaseSheetSummaryGen`)**: Synthesizes the clinical data into a formatted `CaseSheetSummary` (Patient demographics, vitals, chief complaints, examination findings, diagnosis, prescription table, treatment plan, therapy, and instructions).
+3. **Database & Storage (`Supabase`)**: Stores consultation transcripts, SOAP extractions, and case summaries, and stores generated hospital PDFs in the `case-sheets` storage bucket.
+4. **PDF Generator (`CaseSheetPDF`)**: Generates clean, multi-page hospital summary sheets with patient demographics, prescription tables, and clinic headers (on page 1).
 
 ---
 
@@ -8,116 +31,166 @@ MediScribe is an AI-powered clinical documentation and consultation assistant bu
 
 ```
 mediscribe/
-├── README.md                      # Project overview, setup, usage, and examples
-├── requirements.txt               # List of Python dependencies (LangGraph, LangChain, Groq)
-├── .env                           # Environment variables and API keys
-├── .gitignore                     # Git ignore rules
-├── docker-compose.yml             # Container orchestration
-├── Dockerfile                     # Container definition
-├── main.py                        # Entry point to run FastAPI / Agent Server
+├── main.py                             # FastAPI application entry point with CORS & Swagger UI
+├── requirements.txt                    # Python dependencies
+├── supabase_schema.sql                 # Supabase PostgreSQL DDL migration & Storage setup
+├── .env.example                        # Example environment variables
 │
-├── src/                           # Source code for the AI Agent
-│   ├── agent/                     # LangGraph workflow, state, nodes, and executor
+├── src/
+│   ├── agent/
 │   │   ├── __init__.py
-│   │   ├── agent.py               # Main MediScribeAgent interface
-│   │   ├── executor.py            # LangGraph StateGraph pipeline executor
-│   │   ├── graph.py               # LangGraph StateGraph definitions & compilation
-│   │   ├── nodes.py               # Discrete LangGraph node execution functions
-│   │   ├── state.py               # ClinicalState & InteractiveAgentState schemas
-│   │   └── memory.py              # LangGraph MemorySaver checkpointer & session manager
+│   │   └── agent.py                    # 2-Agent LangGraph StateGraph pipeline
 │   │
-│   ├── tools/                     # LangChain tool definitions with @tool wrappers
+│   ├── api/
 │   │   ├── __init__.py
-│   │   ├── search.py              # Medical knowledge base search tool
-│   │   ├── calculator.py          # Clinical dosage & math calculation tool
-│   │   └── weather.py             # Contextual environment lookup tool
+│   │   ├── routes.py                   # Unified FastAPI REST endpoints
+│   │   └── schemas.py                  # Pydantic data schemas & API contracts
 │   │
-│   ├── models/                    # LLM clients & configuration
+│   ├── models/
 │   │   ├── __init__.py
-│   │   ├── llm_client.py          # ChatGroq & AsyncGroq client manager
-│   │   └── embeddings.py          # Embedding models
+│   │   └── llm_client.py               # Vertex AI / Google GenAI / Groq LLM client factory
 │   │
-│   ├── prompts/                   # System & agent prompt templates
+│   ├── services/
 │   │   ├── __init__.py
-│   │   ├── system_prompts.py      # SOAP & Case Sheet system prompts
-│   │   └── agent_prompts.py       # User and task prompt formatters
+│   │   └── supabase_service.py         # Supabase CRUD operations, Storage bucket & memory fallback
 │   │
-│   ├── utils/                     # Helpers, logging, configuration
-│   │   ├── __init__.py
-│   │   ├── config.py              # Centralized environment configuration
-│   │   ├── logger.py              # Logger setup (console + file)
-│   │   └── helpers.py             # Audio buffer and latency helpers
-│   │
-│   └── api/                       # API layer exposing agent (FastAPI)
+│   └── utils/
 │       ├── __init__.py
-│       ├── routes.py              # Endpoints & WebSocket handler
-│       └── schemas.py             # Pydantic data schemas
+│       ├── config.py                   # Centralized configuration & environment loader
+│       ├── logger.py                   # Structured logger
+│       └── pdf_generator.py            # FPDF2 clinical Case Sheet PDF generator
 │
-├── tests/                         # Unit tests, graph tests, integration tests
-│   ├── __init__.py
-│   ├── test_agent.py
-│   ├── test_graph.py              # LangGraph StateGraph workflow & node tests
-│   ├── test_tools.py
-│   └── test_api.py
-│
-├── data/                          # Sample data & evaluation datasets
-│   ├── examples.json
-│   └── knowledge_base/
-│
-└── logs/                          # Log files for debugging and monitoring
-    └── .gitkeep
+└── tests/
+    ├── __init__.py
+    └── test_pipeline_and_endpoints.py  # End-to-end automated test suite
 ```
 
 ---
 
-## 🚀 Quickstart
+## 🚀 Getting Started
 
 ### 1. Prerequisites
 - Python 3.10+
-- Groq API Key
+- Google Cloud Vertex AI credentials / API Key (or Groq API key)
+- Supabase Project URL and API Key
 
-### 2. Setup Environment
+### 2. Installation
+
 ```bash
-# Clone or navigate to the mediscribe folder
+# Navigate to backend directory
 cd mediscribe
 
 # Create virtual environment
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Activate virtual environment
+# Windows:
+.venv\Scripts\activate
+# Linux/macOS:
+source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
 ```
 
-### 3. Configure `.env`
-Create a `.env` file from `.env.example`:
+### 3. Setup Supabase Database & Storage
+In your [Supabase Dashboard](https://supabase.com/dashboard) SQL Editor, execute the contents of [`supabase_schema.sql`](file:///c:/Users/anshy/Documents/mediapp/mediscribe/supabase_schema.sql):
+- Creates `public.consultations` table with JSONB fields and indexes.
+- Configures Row Level Security (RLS).
+- Creates public `case-sheets` storage bucket for PDF files.
+
+### 4. Configure Environment Variables
+Create a `.env` file in `mediscribe/`:
+
 ```env
-GROQ_API_KEY=gsk_your_groq_api_key_here
+# LLM Provider
+DEFAULT_LLM_MODEL=gemini-2.5-flash
+GROQ_API_KEY=your_groq_api_key_if_using_groq
+
+# Supabase
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_KEY=your_supabase_anon_or_service_key
+SUPABASE_STORAGE_BUCKET=case-sheets
+
+# Server Configuration
 PORT=8000
 HOST=0.0.0.0
+DEBUG=True
 ```
 
-### 4. Run the Agent Server
+### 5. Run the Server
 ```bash
 python main.py
 ```
-API Documentation will be available at: `http://localhost:8000/docs`
+
+- **Interactive Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **ReDoc Documentation**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+- **Health Check**: [http://localhost:8000/api/health](http://localhost:8000/api/health)
 
 ---
 
-## 📡 Endpoints
+## 📡 API Endpoints
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/api/health` | Health and model status check |
-| `POST` | `/api/generate-summary` | Generate SOAP + Case Sheet from raw transcript |
-| `POST` | `/api/agent/query` | Interactive query endpoint with tool routing |
-| `WS` | `/api/ws/transcribe` | Real-time audio chunk transcription over WebSocket |
+### 1. `POST /api/generate-summary`
+Takes raw doctor-patient conversation text and generates the initial Case Study Summary.
+- **Request Body**:
+  ```json
+  {
+    "transcript": "Doctor and patient conversation text...",
+    "session_id": "consultation_001",
+    "patient_id": "PAT-102"
+  }
+  ```
+- **Response**: Returns `session_id`, `status: "pending_review"`, `case_study_summary`, and `soap`.
+
+### 2. `POST /api/update-summary`
+Updates the consultation record with the doctor's reviewed/edited Case Study Summary.
+- **Request Body**:
+  ```json
+  {
+    "session_id": "consultation_001",
+    "updated_case_study_summary": { ... }
+  }
+  ```
+- **Response**: Returns `session_id`, `status: "reviewed"`, and `updated_case_study_summary`.
+
+### 3. `POST /api/generate-pdf`
+Generates the hospital PDF from the stored summary and uploads it to Supabase Storage.
+- **Request Body**:
+  ```json
+  {
+    "session_id": "consultation_001"
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "session_id": "consultation_001",
+    "status": "reviewed",
+    "pdf_url": "https://<supabase-id>.supabase.co/storage/v1/object/public/case-sheets/...",
+    "download_url": "http://localhost:8000/api/consultation/consultation_001/download-pdf",
+    "message": "PDF generated and uploaded to Supabase Storage successfully."
+  }
+  ```
+
+### 4. `GET /api/consultation/{session_id}/download-pdf`
+Downloads the clinical PDF directly as a file attachment (`Content-Disposition: attachment`).
+
+### 5. `GET /api/consultation/{session_id}/pdf`
+Streams the PDF inline for direct browser viewing.
+
+### 6. `GET /api/consultation/{session_id}`
+Retrieves the complete consultation record, SOAP data, and summaries.
+
+### 7. `GET /api/consultations`
+Lists past consultations stored in the database.
 
 ---
 
 ## 🧪 Running Tests
 
+Run the automated integration test suite:
+
 ```bash
-pytest tests/
+python tests/test_pipeline_and_endpoints.py
 ```
