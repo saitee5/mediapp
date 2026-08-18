@@ -1,10 +1,11 @@
 from .agent import (
     SOAPExtractionAgent,
     aSOAPExtractionAgent,
-    CaseSheetSummaryGen,
+    aPatientVisitSummaryGen,
     aCaseSheetSummaryGen,
-    graph,
-    compiled,
+    aDischargeInstructionsGen,
+    compiled_extraction_pipeline,
+    compiled_downstream_pipeline,
     agent,
     MediScribeAgent,
 )
@@ -12,10 +13,11 @@ from .agent import (
 __all__ = [
     "SOAPExtractionAgent",
     "aSOAPExtractionAgent",
-    "CaseSheetSummaryGen",
+    "aPatientVisitSummaryGen",
     "aCaseSheetSummaryGen",
-    "graph",
-    "compiled",
+    "aDischargeInstructionsGen",
+    "compiled_extraction_pipeline",
+    "compiled_downstream_pipeline",
     "agent",
     "MediScribeAgent",
 ]

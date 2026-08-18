@@ -1,8 +1,8 @@
 -- ==============================================================================
--- MediScribe AI Consultation & Case Sheet Summary Schema for Supabase
+-- MediScribe AI Consultation, SOAP & Multi-Document Schema for Supabase
 -- ==============================================================================
 
--- 1. Create consultations table with pdf_url support
+-- 1. Create consultations table with multi-document support
 CREATE TABLE IF NOT EXISTS public.consultations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id TEXT UNIQUE NOT NULL,
@@ -12,7 +12,10 @@ CREATE TABLE IF NOT EXISTS public.consultations (
     encounter_date TEXT,
     transcript TEXT,
     soap_data JSONB,
+    patient_visit_summary JSONB,
     case_sheet_summary JSONB,
+    discharge_instructions JSONB,
+    referral_letter JSONB,
     updated_case_sheet_summary JSONB,
     pdf_url TEXT,
     status TEXT NOT NULL DEFAULT 'pending_review',
@@ -20,7 +23,11 @@ CREATE TABLE IF NOT EXISTS public.consultations (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
--- If table already exists without pdf_url, add the column
+-- Ensure newly added columns exist if table was already created
+ALTER TABLE public.consultations ADD COLUMN IF NOT EXISTS patient_visit_summary JSONB;
+ALTER TABLE public.consultations ADD COLUMN IF NOT EXISTS discharge_instructions JSONB;
+ALTER TABLE public.consultations ADD COLUMN IF NOT EXISTS referral_letter JSONB;
+ALTER TABLE public.consultations ADD COLUMN IF NOT EXISTS case_sheet_summary JSONB;
 ALTER TABLE public.consultations ADD COLUMN IF NOT EXISTS pdf_url TEXT;
 
 -- Indexes for rapid lookup
@@ -65,18 +72,21 @@ VALUES ('case-sheets', 'case-sheets', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
 -- Policy to allow public read access on PDFs
+DROP POLICY IF EXISTS "Public Read Access for case-sheets" ON storage.objects;
 CREATE POLICY "Public Read Access for case-sheets"
 ON storage.objects FOR SELECT
 TO public
 USING (bucket_id = 'case-sheets');
 
 -- Policy to allow uploads into case-sheets
+DROP POLICY IF EXISTS "Allow Uploads to case-sheets" ON storage.objects;
 CREATE POLICY "Allow Uploads to case-sheets"
 ON storage.objects FOR INSERT
 TO public
 WITH CHECK (bucket_id = 'case-sheets');
 
 -- Policy to allow updates/upserts into case-sheets
+DROP POLICY IF EXISTS "Allow Updates to case-sheets" ON storage.objects;
 CREATE POLICY "Allow Updates to case-sheets"
 ON storage.objects FOR UPDATE
 TO public
