@@ -1,5 +1,5 @@
-import React from 'react'
-import { useOutletContext } from "react-router-dom";
+import { useState, useEffect } from 'react';
+import { useOutletContext, useNavigate } from "react-router-dom";
 import {
   Users,
   Calendar,
@@ -7,11 +7,46 @@ import {
   AlertTriangle,
   CalendarClock,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Loader2,
 } from 'lucide-react';
+import { api } from '../../services/api';
 
 export default function Dashboard() {
   const { doctorInfo, onMetricClick, onPatientClick, alertsCount } = useOutletContext();
+  const navigate = useNavigate();
+
+  const [backendConsultations, setBackendConsultations] = useState([]);
+  const [isLoadingConsults, setIsLoadingConsults] = useState(true);
+  const [backendOnline, setBackendOnline] = useState(null); // null = unknown, true/false once checked
+
+  useEffect(() => {
+    async function loadDashboardData() {
+      // Check backend health first so we know whether to trust the data or fall back to mocks.
+      const health = await api.checkHealth();
+      setBackendOnline(health.status !== "offline");
+
+      try {
+        const res = await api.listConsultations(10);
+        // Defensive: list_consultations has no fixed response schema on the backend yet,
+        // so normalize both a raw array and a { consultations: [...] } wrapper.
+        const consultations = Array.isArray(res)
+          ? res
+          : Array.isArray(res?.consultations)
+            ? res.consultations
+            : [];
+        setBackendConsultations(consultations);
+      } catch (err) {
+        console.warn("Could not fetch backend consultations for dashboard:", err);
+      } finally {
+        setIsLoadingConsults(false);
+      }
+    }
+    loadDashboardData();
+  }, []);
+
+  const totalConsults = backendConsultations.length > 0 ? (18 + backendConsultations.length).toString() : '18';
+  const totalSoapNotes = backendConsultations.length > 0 ? (842 + backendConsultations.length).toString() : '842';
 
   const stats = [
     {
@@ -26,7 +61,7 @@ export default function Dashboard() {
     {
       id: 'consults',
       label: "TODAY'S CONSULTS",
-      value: '18',
+      value: totalConsults,
       change: 'Today',
       changeType: 'neutral',
       icon: Calendar,
@@ -35,7 +70,7 @@ export default function Dashboard() {
     {
       id: 'soap',
       label: 'SOAP NOTES',
-      value: '842',
+      value: totalSoapNotes,
       change: '98% Auto',
       changeType: 'positive',
       icon: FileText,
@@ -44,8 +79,8 @@ export default function Dashboard() {
     {
       id: 'alerts',
       label: 'DRUG ALERTS',
-      value: alertsCount.toString(),
-      change: 'Critical',
+      value: (alertsCount || 2).toString(),
+      change: 'Active',
       changeType: 'negative',
       icon: AlertTriangle,
       iconBg: 'bg-red-50 text-red-600',
@@ -53,15 +88,15 @@ export default function Dashboard() {
     },
   ];
 
-  const recentPatients = [
+  const defaultPatients = [
     {
       id: 'p001',
-      initials: 'EH',
-      name: 'Elena Hayes',
-      age: 42,
-      diagnosis: 'Type 2 Diabetes Mellitus',
-      visitDate: 'Oct 24, 10:15 AM',
-      status: 'Completed',
+      initials: 'ER',
+      name: 'Elena Rodriguez',
+      age: 72,
+      diagnosis: 'Orthostatic Hypotension, AFib',
+      visitDate: 'Today, 10:15 AM',
+      status: 'Reviewed',
       statusClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     },
     {
@@ -70,9 +105,9 @@ export default function Dashboard() {
       name: 'Marcus Chen',
       age: 29,
       diagnosis: 'Acute Sinusitis',
-      visitDate: 'Oct 24, 09:30 AM',
-      status: 'Draft',
-      statusClass: 'bg-slate-100 text-slate-700 border-slate-200',
+      visitDate: 'Today, 09:30 AM',
+      status: 'Pending Review',
+      statusClass: 'bg-amber-50 text-amber-700 border-amber-200',
     },
     {
       id: 'p003',
@@ -80,7 +115,7 @@ export default function Dashboard() {
       name: 'Sarah Rodriguez',
       age: 64,
       diagnosis: 'Hypertension - Follow-up',
-      visitDate: 'Oct 23, 04:45 PM',
+      visitDate: 'Yesterday, 04:45 PM',
       status: 'Action Required',
       statusClass: 'bg-red-50 text-red-700 border-red-200 animate-pulse',
     },
@@ -90,27 +125,61 @@ export default function Dashboard() {
       name: 'James Wilson',
       age: 51,
       diagnosis: 'Osteoarthritis Knee',
-      visitDate: 'Oct 23, 02:00 PM',
-      status: 'Completed',
+      visitDate: 'Yesterday, 02:00 PM',
+      status: 'Reviewed',
       statusClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     },
   ];
+
+  const recentPatients = backendConsultations.length > 0
+    ? backendConsultations.slice(0, 6).map((c) => ({
+      id: c.session_id,
+      initials: (c.patient_name || "Patient")
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase(),
+      name: c.patient_name || "Elena Rodriguez",
+      age: c.updated_case_sheet_summary?.age || c.case_sheet_summary?.age || 65,
+      diagnosis: c.updated_case_sheet_summary?.diagnosis || c.case_sheet_summary?.diagnosis || "Clinical Evaluation",
+      visitDate: c.encounter_date || new Date(c.created_at || Date.now()).toLocaleDateString(),
+      status: c.status === "reviewed" ? "Reviewed" : "Pending Review",
+      statusClass: c.status === "reviewed"
+        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+        : "bg-amber-50 text-amber-700 border-amber-200",
+    }))
+    : defaultPatients;
 
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
       {/* Top Banner section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold font-display text-slate-900 tracking-tight">
-            Clinical Overview
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-extrabold font-display text-slate-900 tracking-tight">
+              Clinical Overview
+            </h1>
+            {backendOnline !== null && (
+              <span
+                className={`flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${backendOnline
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-red-50 text-red-700'
+                  }`}
+                title={backendOnline ? 'Backend connected' : 'Backend unreachable — showing sample data'}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${backendOnline ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                {backendOnline ? 'Live' : 'Offline'}
+              </span>
+            )}
+          </div>
           <p className="text-sm text-slate-500 font-medium mt-1">
-            Here's what requires your attention today, {doctorInfo?.name || 'Dr. Vance'}.
+            Here's what requires your attention today, {doctorInfo?.name || 'Dr. Julian Vance'}.
           </p>
         </div>
         <div className="flex items-center gap-2.5 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl shadow-sm text-sm font-semibold text-slate-700 select-none">
           <CalendarClock className="w-4 h-4 text-slate-400" />
-          <span>Oct 24, 2023</span>
+          <span>{new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
         </div>
       </div>
 
@@ -129,13 +198,12 @@ export default function Dashboard() {
                   {stat.label}
                 </span>
                 <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                    stat.changeType === 'positive'
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${stat.changeType === 'positive'
                       ? 'bg-emerald-50 text-emerald-700'
                       : stat.changeType === 'negative'
-                      ? 'bg-red-50 text-red-700'
-                      : 'bg-slate-100 text-slate-600'
-                  }`}
+                        ? 'bg-red-50 text-red-700'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}
                 >
                   {stat.badgeDot && <span className="w-1.5 h-1.5 bg-red-600 rounded-full"></span>}
                   {stat.change}
@@ -154,7 +222,6 @@ export default function Dashboard() {
         })}
       </div>
 
-      
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm lg:col-span-2 flex flex-col justify-between min-h-90">
           <div>
@@ -250,58 +317,71 @@ export default function Dashboard() {
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
           <h3 className="font-bold text-slate-800 tracking-tight font-display text-lg">
-            Recent Patients
+            Recent Patients &amp; AI Scribes
           </h3>
           <button
-            onClick={() => onPatientClick(null)}
+            onClick={() => navigate('/History')}
             className="flex items-center gap-1 text-xs font-bold text-[#007e7a] hover:text-[#005f5c] transition-colors cursor-pointer"
           >
-            <span>View All Patients</span>
+            <span>View Consultation History</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 tracking-wider border-b border-slate-100">
-                <th className="px-6 py-4">PATIENT NAME</th>
-                <th className="px-6 py-4">AGE</th>
-                <th className="px-6 py-4">DIAGNOSIS</th>
-                <th className="px-6 py-4">VISIT DATE</th>
-                <th className="px-6 py-4">STATUS</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
-              {recentPatients.map((patient, index) => (
-                <tr
-                  key={index}
-                  onClick={() => onPatientClick(patient)}
-                  className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
-                >
-                  <td className="px-6 py-4 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-xs">
-                      {patient.initials}
-                    </div>
-                    <span className="font-semibold text-slate-800 group-hover:text-[#007e7a] transition-colors">
-                      {patient.name}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-slate-600 font-medium">{patient.age}</td>
-                  <td className="px-6 py-4 text-slate-600 font-medium truncate max-w-55">
-                    {patient.diagnosis}
-                  </td>
-                  <td className="px-6 py-4 text-slate-500 font-medium">{patient.visitDate}</td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold border ${patient.statusClass}`}
-                    >
-                      {patient.status}
-                    </span>
-                  </td>
+          {isLoadingConsults ? (
+            <div className="flex items-center justify-center gap-2 py-12 text-slate-400 text-sm font-medium">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Loading consultations...
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-[10px] font-bold text-slate-400 tracking-wider border-b border-slate-100">
+                  <th className="px-6 py-4">PATIENT NAME</th>
+                  <th className="px-6 py-4">AGE</th>
+                  <th className="px-6 py-4">DIAGNOSIS</th>
+                  <th className="px-6 py-4">VISIT DATE</th>
+                  <th className="px-6 py-4">STATUS</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {recentPatients.map((patient, index) => (
+                  <tr
+                    key={index}
+                    onClick={() => {
+                      if (patient.id.startsWith("consult_") || patient.id.startsWith("p00")) {
+                        navigate(`/soapnotes/${patient.id}`);
+                      } else {
+                        onPatientClick(patient);
+                      }
+                    }}
+                    className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
+                  >
+                    <td className="px-6 py-4 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-xs">
+                        {patient.initials}
+                      </div>
+                      <span className="font-semibold text-slate-800 group-hover:text-[#007e7a] transition-colors">
+                        {patient.name}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-slate-600 font-medium">{patient.age}</td>
+                    <td className="px-6 py-4 text-slate-600 font-medium truncate max-w-55">
+                      {patient.diagnosis}
+                    </td>
+                    <td className="px-6 py-4 text-slate-500 font-medium">{patient.visitDate}</td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold border ${patient.statusClass}`}
+                      >
+                        {patient.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>

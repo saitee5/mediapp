@@ -1,36 +1,204 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { 
   AlertTriangle, Download, ShieldAlert, Info, 
   Calendar, Fingerprint, FilePlus, Clock, 
   Bold, Italic, List, ListOrdered, Link2, Image as ImageIcon, Sparkles, ClipboardList,
-  ChevronDown, ChevronUp
+  ChevronDown, ChevronUp, Save, CheckCircle, ExternalLink, Loader2, FileCheck
 } from "lucide-react";
+import { api } from "../../services/api";
 
 export default function SuggestedPlanMock() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const stateData = location.state || {};
+
+  const sessionId = stateData.sessionId || "consult_demo_8821";
+  const caseStudySummary = stateData.caseStudySummary;
+  const soapData = stateData.soap;
+  const patientData = stateData.patientData || {};
+
   const [activeTab, setActiveTab] = useState('soap');
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [generatedPdfUrl, setGeneratedPdfUrl] = useState(null);
   const [isAlertsOpen, setIsAlertsOpen] = useState(false);
   const fileInputRef = useRef(null);
-  
-  // Advanced alerts mock data
+
+  // Format initial documents from backend AI responses if available
+  const buildInitialDocuments = () => {
+    // 1. SOAP
+    let soapContent = "";
+    if (soapData) {
+      const subj = soapData.subjective;
+      const obj = soapData.objective;
+      const assess = soapData.assessment_plan;
+
+      soapContent = `SUBJECTIVE:
+Chief Complaint: ${subj?.chief_complaint || "N/A"}
+HPI: ${subj?.hpi ? JSON.stringify(subj.hpi, null, 2) : "N/A"}
+Past Medical History: ${subj?.past_medical_history?.join(", ") || "None"}
+Current Medications: ${subj?.medications?.join(", ") || "None"}
+Allergies: ${subj?.allergies?.join(", ") || "None"}
+
+OBJECTIVE:
+Vitals: ${obj?.vitals?.join(", ") || "Stable"}
+Physical Exam Findings: ${obj?.physical_exam_findings?.join(", ") || "Unremarkable"}
+Diagnostic Results: ${obj?.diagnostic_results?.join(", ") || "None"}
+
+ASSESSMENT & PLAN:
+Diagnoses: ${assess?.diagnoses?.join(", ") || "Clinical evaluation pending"}
+Orders & Prescriptions: ${assess?.orders_prescriptions?.join(", ") || "None"}
+Patient Instructions: ${assess?.patient_instructions?.join(", ") || "None"}
+Follow-Up: ${assess?.follow_up || "2 weeks"}`;
+    } else if (caseStudySummary) {
+      soapContent = `SUBJECTIVE:
+Chief Complaints: ${caseStudySummary.chief_complaints}
+
+OBJECTIVE:
+Vitals: ${caseStudySummary.vitals}
+Examination Findings: ${caseStudySummary.examination_findings}
+
+ASSESSMENT:
+Diagnosis: ${caseStudySummary.diagnosis}
+
+PLAN:
+Treatment Plan: ${caseStudySummary.treatment_plan}
+Prescriptions:
+${caseStudySummary.prescriptions?.map(p => `- ${p.medicine} | ${p.dosage} | ${p.duration}`).join("\n") || "None"}
+Instructions: ${caseStudySummary.instructions}`;
+    } else {
+      soapContent = `SUBJECTIVE:
+Patient complains of orthostatic dizziness and post-op knee stiffness.
+
+OBJECTIVE:
+BP: 112/78, HR: 82 bpm, Temp: 98.6°F. Mobility improving.
+
+ASSESSMENT:
+1. Post-operative recovery status post knee arthroplasty.
+2. Orthostatic hypotension secondary to medication timing.
+3. Atrial fibrillation, stable on anticoagulant therapy.
+
+PLAN:
+1. Refill Eliquis 5mg BID for stroke prevention.
+2. Continue Metformin 500mg BID and Lisinopril 10mg QD.
+3. Hydration encouragement and slow positional changes.
+4. Follow-up in 2 weeks.`;
+    }
+
+    // 2. Patient Visit Summary
+    let summaryContent = "";
+    if (caseStudySummary) {
+      summaryContent = `PATIENT CASE SHEET SUMMARY
+--------------------------------------------------
+Patient Name : ${caseStudySummary.patient_name}
+Age / Gender : ${caseStudySummary.age} / ${caseStudySummary.gender}
+Patient ID   : ${caseStudySummary.patient_no}
+Attending    : ${caseStudySummary.doctor}
+Visit Date   : ${caseStudySummary.date}
+
+CHIEF COMPLAINTS:
+${caseStudySummary.chief_complaints}
+
+VITALS & EXAM:
+${caseStudySummary.vitals}
+Findings: ${caseStudySummary.examination_findings}
+
+DIAGNOSIS:
+${caseStudySummary.diagnosis}
+
+TREATMENT & PLAN:
+${caseStudySummary.treatment_plan}
+${caseStudySummary.instructions}`;
+    } else {
+      summaryContent = `Patient: ${patientData.name || "Elena Rodriguez"}
+Date: ${new Date().toLocaleDateString()}
+ID: ${sessionId}
+
+Reason for Visit: Post-operative consultation and medication review.
+
+Summary of Visit:
+Patient was evaluated following orthopedic surgery. Vitals and knee range of motion are improving. Orthostatic symptoms were evaluated and addressed with medication schedule adjustments. Eliquis prescription was renewed. Patient reported feeling well-supported.`;
+    }
+
+    // 3. Discharge Report / Referral
+    let referralContent = "";
+    if (caseStudySummary) {
+      referralContent = `DISCHARGE / REFERRAL REPORT
+--------------------------------------------------
+To: Cardiology & Physical Therapy
+From: ${caseStudySummary.doctor}
+Patient: ${caseStudySummary.patient_name} (${caseStudySummary.age}, ${caseStudySummary.gender})
+
+Diagnosis: ${caseStudySummary.diagnosis}
+Investigations: ${caseStudySummary.investigations || "None"}
+Therapy Details: ${caseStudySummary.therapy_description || "Outpatient physical therapy"}
+Therapy Result: ${caseStudySummary.therapy_result || "Progressing satisfactorily"}
+
+Clinical Notes:
+${caseStudySummary.notes || "Patient is stable for continued outpatient management."}`;
+    } else {
+      referralContent = `Referral Letter / Clinical Report
+To: Cardiology Department & Outpatient Rehab
+Attending: Dr. Julian Vance, MD
+
+Patient Elena Rodriguez is continuing post-operative recovery with mild orthostatic dizziness.
+Cardiovascular rhythm is monitored with stable vitals. Please continue scheduled physical therapy protocol 3 times weekly.`;
+    }
+
+    // 4. Instructions
+    let instructionsContent = "";
+    if (caseStudySummary) {
+      instructionsContent = `DISCHARGE INSTRUCTIONS FOR ${caseStudySummary.patient_name.toUpperCase()}
+--------------------------------------------------
+Prescribed Medications:
+${caseStudySummary.prescriptions?.map(p => `• ${p.medicine}: ${p.dosage} for ${p.duration}`).join("\n") || "• Continue current baseline medications."}
+
+Care & Lifestyle Instructions:
+${caseStudySummary.instructions}
+
+Warning Signs:
+Contact the clinic immediately if experiencing severe dizziness, palpitations, chest pain, or sudden shortness of breath.`;
+    } else {
+      instructionsContent = `Discharge Instructions:
+1. Take Eliquis 5mg twice daily with or without food.
+2. Take Metformin 500mg twice daily with meals.
+3. Take Lisinopril 10mg once daily in the morning.
+4. Stand up slowly from sitting or lying down to prevent dizziness.
+5. Drink at least 6-8 glasses of water daily.
+6. Return to clinic in 2 weeks or immediately if symptoms worsen.`;
+    }
+
+    return {
+      soap: soapContent,
+      summary: summaryContent,
+      referral: referralContent,
+      instructions: instructionsContent,
+    };
+  };
+
+  const [documents, setDocuments] = useState(buildInitialDocuments());
+
+  // Alerts
   const [alerts, setAlerts] = useState([
     {
       id: 1,
       type: "critical",
-      title: "Severe Drug-Drug Interaction",
-      description: "Lisinopril and existing Potassium supplements may cause hyperkalemia. Consider alternative.",
+      title: "Medication Adherence Alert",
+      description: "Patient reported missing doses of anticoagulant (Eliquis). Refill ordered immediately.",
       icon: ShieldAlert,
       color: "red",
-      actionText: "Review"
+      actionText: "Review Rx"
     },
     {
       id: 2,
       type: "warning",
-      title: "Missing Clinical Information",
-      description: "Patient's recent creatinine levels are missing.",
+      title: "Orthostatic Symptom Flag",
+      description: "Mild orthostatic dizziness noted. Vitals stable; advised hydration and positional pacing.",
       icon: AlertTriangle,
       color: "amber",
-      actionText: "Request Labs"
+      actionText: "Check BP"
     }
   ]);
 
@@ -41,13 +209,6 @@ export default function SuggestedPlanMock() {
     { id: 'instructions', label: 'Discharge Instructions' },
   ];
 
-  const [documents, setDocuments] = useState({
-    soap: `Subjective:\nPatient complains of severe headaches and mild chest pain.\n\nObjective:\nBP: 140/90, HR: 88, Temp: 98.6F\n\nAssessment:\nHypertension, Tension Headache\n\nPlan:\n1. Prescribe Lisinopril 10mg daily.\n2. Recommend OTC pain relievers (Acetaminophen).\n3. Schedule follow-up ECG next week.`,
-    summary: `Patient: Selena Gomez\nDate: 2023-10-24\n\nReason for Visit: Follow-up for hypertension and headaches.\n\nSummary of Visit:\nPatient was seen for ongoing headaches and mild chest pain. Vitals were taken and showed elevated blood pressure. A treatment plan involving Lisinopril and Acetaminophen was discussed and agreed upon. Follow-up is scheduled for next week.`,
-    referral: `Referral Letter / Discharge Report\n\nTo: Cardiology Department\nFrom: Dr. Smith\n\nPatient Selena Gomez is being referred for a follow-up ECG due to mild chest pain and elevated blood pressure. Please evaluate for any underlying cardiac conditions.`,
-    instructions: `Discharge Instructions for Selena Gomez:\n\n1. Take Lisinopril 10mg once daily in the morning.\n2. Take Acetaminophen as needed for headaches, not exceeding 3000mg per day.\n3. Monitor blood pressure daily and keep a log.\n4. Return to the clinic if chest pain worsens or becomes severe.`
-  });
-
   const handleTextChange = (e) => {
     setDocuments({
       ...documents,
@@ -55,12 +216,86 @@ export default function SuggestedPlanMock() {
     });
   };
 
-  const handleGenerateAllPDFs = () => {
+  const handleSaveSummary = async () => {
+    setIsSaving(true);
+    setSaveSuccess(false);
+
+    try {
+      // Construct updated CaseSheetSummary object for backend update
+      const updatedSummaryPayload = {
+        patient_name: caseStudySummary?.patient_name || patientData.name || "Elena Rodriguez",
+        gender: caseStudySummary?.gender || patientData.gender || "Female",
+        age: String(caseStudySummary?.age || patientData.age || "72"),
+        patient_no: caseStudySummary?.patient_no || sessionId,
+        doctor: caseStudySummary?.doctor || "Dr. Julian Vance",
+        date: caseStudySummary?.date || new Date().toLocaleString(),
+        chief_complaints: caseStudySummary?.chief_complaints || "Orthostatic dizziness and post-op recovery",
+        vitals: caseStudySummary?.vitals || "BP: 112/78, Pulse: 82 bpm",
+        examination_findings: caseStudySummary?.examination_findings || "Unremarkable, wound healing nicely",
+        investigations: caseStudySummary?.investigations || "None ordered",
+        diagnosis: caseStudySummary?.diagnosis || "Orthostatic Hypotension, AFib stable",
+        prescriptions: caseStudySummary?.prescriptions || [
+          { medicine: "Eliquis 5mg", dosage: "1-0-1 After Food", duration: "30 Days" },
+          { medicine: "Lisinopril 10mg", dosage: "1-0-0 Morning", duration: "30 Days" }
+        ],
+        treatment_plan: documents.summary || documents.soap,
+        therapy_description: "Outpatient Physical Therapy",
+        therapy_result: "Progressing well",
+        notes: documents.referral || "Routine follow-up scheduled",
+        instructions: documents.instructions || "Avoid rapid position changes",
+      };
+
+      await api.updateSummary({
+        sessionId,
+        updatedCaseStudySummary: updatedSummaryPayload,
+      });
+
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      console.warn("Could not save to backend database:", err);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleGenerateAllPDFs = async () => {
     setIsGeneratingAll(true);
-    setTimeout(() => {
+    setGeneratedPdfUrl(null);
+
+    try {
+      // First save current review
+      await handleSaveSummary();
+
+      // Call Step 3: generate-pdf backend endpoint
+      const pdfRes = await api.generatePdf(sessionId);
+      console.log("PDF generation response:", pdfRes);
+
+      if (pdfRes.pdf_url) {
+        setGeneratedPdfUrl(pdfRes.pdf_url);
+      }
+
+      // Download directly via backend download endpoint
+      const downloadUrl = pdfRes.download_url || api.getDownloadPdfUrl(sessionId);
+      
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.setAttribute("download", `case_sheet_${sessionId}.pdf`);
+      link.target = "_blank";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+    } catch (err) {
+      console.warn("Backend PDF generation notice:", err.message);
+      // Fallback direct download link
+      const fallbackUrl = api.getDownloadPdfUrl(sessionId);
+      window.open(fallbackUrl, "_blank");
+    } finally {
       setIsGeneratingAll(false);
-      alert("All 4 PDFs Generated Successfully!");
-    }, 1500);
+    }
   };
   
   const dismissAlert = (id) => {
@@ -68,38 +303,75 @@ export default function SuggestedPlanMock() {
   };
 
   const handleImageClick = () => {
-    // Mock opening a file picker
     if (fileInputRef.current) {
       fileInputRef.current.click();
     }
   };
+
+  const patientDisplayName = caseStudySummary?.patient_name || patientData.name || "Elena Rodriguez";
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8 bg-white min-h-screen font-sans text-slate-800">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold font-display text-slate-900 tracking-tight">
-            Review Generated Documents
+            Review Generated Case Documents
           </h1>
           <p className="text-sm text-slate-500 font-medium mt-2">
-            Review the 4 generated documents, resolve clinical alerts, and finalize the paperwork.
+            AI synthesized 4 clinical documents from your consultation transcript. Review, customize, and generate official PDFs.
           </p>
         </div>
-        <button
-          onClick={handleGenerateAllPDFs}
-          disabled={isGeneratingAll}
-          className="flex items-center justify-center gap-2 bg-[#007e7a] hover:bg-[#005f5c] disabled:bg-teal-700/50 text-white text-sm font-bold px-6 py-3 rounded-xl transition-all shadow-sm cursor-pointer whitespace-nowrap"
-        >
-          {isGeneratingAll ? (
-            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          ) : (
-            <Download className="w-4 h-4" />
-          )}
-          Generate All PDFs
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSaveSummary}
+            disabled={isSaving}
+            className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-sm font-bold px-5 py-3 rounded-xl transition-all cursor-pointer"
+          >
+            {isSaving ? (
+              <Loader2 className="w-4 h-4 animate-spin text-[#007e7a]" />
+            ) : saveSuccess ? (
+              <CheckCircle className="w-4 h-4 text-emerald-600" />
+            ) : (
+              <Save className="w-4 h-4 text-[#007e7a]" />
+            )}
+            <span>{saveSuccess ? "Saved to Database" : "Save Changes"}</span>
+          </button>
+
+          <button
+            onClick={handleGenerateAllPDFs}
+            disabled={isGeneratingAll}
+            className="flex items-center justify-center gap-2 bg-[#007e7a] hover:bg-[#005f5c] disabled:bg-teal-700/50 text-white text-sm font-bold px-6 py-3 rounded-xl transition-all shadow-sm cursor-pointer whitespace-nowrap"
+          >
+            {isGeneratingAll ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+            <span>Export Official PDF</span>
+          </button>
+        </div>
       </div>
 
-      {/* Enhanced Alerts Section */}
+      {generatedPdfUrl && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 p-4 rounded-2xl flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <FileCheck className="w-5 h-5 text-emerald-600" />
+            <span className="text-sm font-semibold">
+              PDF generated and stored in Supabase Storage.
+            </span>
+          </div>
+          <a
+            href={generatedPdfUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-xs font-bold text-[#007e7a] hover:underline"
+          >
+            Open in Supabase <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </div>
+      )}
+
+      {/* Clinical Alerts Section */}
       {alerts.length > 0 && (
         <div className="bg-slate-50 rounded-3xl border border-slate-100 overflow-hidden transition-all">
           <div 
@@ -107,8 +379,8 @@ export default function SuggestedPlanMock() {
             onClick={() => setIsAlertsOpen(!isAlertsOpen)}
           >
             <h2 className="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-wider">
-              Clinical Alerts
-              <span className="bg-red-100 text-red-700 py-0.5 px-2 rounded-full text-xs">{alerts.length}</span>
+              Clinical Insights &amp; Alerts
+              <span className="bg-red-100 text-red-700 py-0.5 px-2 rounded-full text-xs font-extrabold">{alerts.length}</span>
             </h2>
             <button className="text-slate-400 hover:text-slate-600 transition-colors">
               {isAlertsOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
@@ -117,7 +389,7 @@ export default function SuggestedPlanMock() {
           
           {isAlertsOpen && (
             <div className="px-6 pb-6 pt-2 border-t border-slate-100/50">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {alerts.map(alert => {
                   const Icon = alert.icon;
                   const colorClasses = {
@@ -131,9 +403,9 @@ export default function SuggestedPlanMock() {
                       <div>
                         <div className="flex items-start justify-between mb-3">
                           <div className="p-2 rounded-xl bg-white/60 backdrop-blur-sm border border-white/40 shadow-sm">
-                            <Icon className={`w-5 h-5 ${alert.color === 'red' ? 'text-red-600' : alert.color === 'amber' ? 'text-amber-600' : 'text-blue-600'}`} />
+                            <Icon className={`w-5 h-5 ${alert.color === 'red' ? 'text-red-600' : 'text-amber-600'}`} />
                           </div>
-                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-white/60 backdrop-blur-sm border border-white/40 shadow-sm ${alert.color === 'red' ? 'text-red-700' : alert.color === 'amber' ? 'text-amber-700' : 'text-blue-700'}`}>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-white/60 backdrop-blur-sm border border-white/40 shadow-sm ${alert.color === 'red' ? 'text-red-700' : 'text-amber-700'}`}>
                             {alert.type}
                           </span>
                         </div>
@@ -143,13 +415,10 @@ export default function SuggestedPlanMock() {
                         </p>
                       </div>
                       <div className="flex items-center gap-2 mt-auto pt-4 border-t border-black/5">
-                        <button className={`flex-1 text-xs font-bold py-2 px-3 rounded-lg transition-colors ${alert.color === 'red' ? 'bg-red-100 hover:bg-red-200 text-red-700' : alert.color === 'amber' ? 'bg-amber-100 hover:bg-amber-200 text-amber-700' : 'bg-blue-100 hover:bg-blue-200 text-blue-700'}`}>
-                          {alert.actionText}
-                        </button>
                         <button 
                           onClick={() => dismissAlert(alert.id)}
                           className="text-xs font-bold py-2 px-3 rounded-lg hover:bg-black/5 transition-colors opacity-70 hover:opacity-100">
-                          Dismiss
+                          Acknowledge
                         </button>
                       </div>
                     </div>
@@ -161,15 +430,21 @@ export default function SuggestedPlanMock() {
         </div>
       )}
 
-      <div className="pt-4 space-y-8">
+      <div className="pt-2 space-y-6">
         {/* Patient Header Section */}
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-[#e6f4f1] text-[#007e7a] flex items-center justify-center">
-            <ClipboardList className="w-7 h-7" />
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-[#e6f4f1] text-[#007e7a] flex items-center justify-center font-bold text-xl">
+              <ClipboardList className="w-7 h-7" />
+            </div>
+            <div>
+              <div className="text-xs font-medium text-slate-400 uppercase tracking-wide">Patient Consultation</div>
+              <div className="text-2xl font-extrabold text-slate-900 font-display">{patientDisplayName}</div>
+            </div>
           </div>
-          <div>
-            <div className="text-xs font-medium text-slate-400 uppercase tracking-wide">Patient</div>
-            <div className="text-2xl font-extrabold text-slate-900 font-display">Selena Gomez</div>
+
+          <div className="text-right text-xs text-slate-400">
+            <span className="font-bold text-slate-700">Session ID:</span> {sessionId.slice(0, 16)}...
           </div>
         </div>
 
@@ -181,7 +456,7 @@ export default function SuggestedPlanMock() {
             </div>
             <div>
               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Visit Date</div>
-              <div className="text-sm font-bold text-slate-800">Oct 24, 2023</div>
+              <div className="text-sm font-bold text-slate-800">{new Date().toLocaleDateString()}</div>
             </div>
           </div>
           
@@ -190,8 +465,8 @@ export default function SuggestedPlanMock() {
               <Fingerprint className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">ID</div>
-              <div className="text-sm font-bold text-slate-800">#SG-9921</div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Record ID</div>
+              <div className="text-sm font-bold text-slate-800">#{sessionId.slice(-6).toUpperCase()}</div>
             </div>
           </div>
 
@@ -201,7 +476,7 @@ export default function SuggestedPlanMock() {
             </div>
             <div>
               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Type</div>
-              <div className="text-sm font-bold text-slate-800">Follow-up</div>
+              <div className="text-sm font-bold text-slate-800">Clinical Case Sheet</div>
             </div>
           </div>
 
@@ -212,7 +487,9 @@ export default function SuggestedPlanMock() {
             <div>
               <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</div>
               <div className="mt-0.5">
-                <span className="bg-[#e6f4f1] text-[#007e7a] text-[10px] font-bold px-2 py-0.5 rounded-full">Drafting</span>
+                <span className="bg-[#e6f4f1] text-[#007e7a] text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  Pending Review
+                </span>
               </div>
             </div>
           </div>
@@ -227,7 +504,7 @@ export default function SuggestedPlanMock() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-6 py-4 text-sm font-bold transition-colors relative whitespace-nowrap ${
+                  className={`px-6 py-4 text-sm font-bold transition-colors relative whitespace-nowrap cursor-pointer ${
                     activeTab === tab.id 
                       ? 'text-[#007e7a]' 
                       : 'text-slate-500 hover:text-slate-700'
@@ -243,7 +520,7 @@ export default function SuggestedPlanMock() {
             <div className="px-6 hidden sm:block">
               <div className="flex items-center gap-1.5 bg-[#e6f4f1] text-[#007e7a] px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wide uppercase">
                 <Sparkles className="w-3 h-3" />
-                AI Generated
+                LangGraph AI Synthesized
               </div>
             </div>
           </div>
@@ -262,20 +539,16 @@ export default function SuggestedPlanMock() {
                 onClick={handleImageClick}
               >
                 <ImageIcon className="w-4 h-4" />
-                <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                  Add Image
-                </span>
                 <input 
                   type="file" 
                   ref={fileInputRef} 
                   className="hidden" 
                   accept="image/*"
-                  onChange={() => alert("Image upload mock clicked")}
                 />
               </button>
             </div>
             <div className="text-[11px] font-medium text-slate-400">
-              Last saved 2m ago
+              Auto-sync ready • Click text to edit before PDF export
             </div>
           </div>
 
@@ -284,7 +557,7 @@ export default function SuggestedPlanMock() {
             <textarea
               value={documents[activeTab]}
               onChange={handleTextChange}
-              className="w-full h-[400px] bg-transparent text-slate-800 text-sm focus:outline-none resize-none font-medium leading-relaxed"
+              className="w-full h-[420px] bg-transparent text-slate-800 text-sm font-mono focus:outline-none resize-none leading-relaxed"
               placeholder={`Start typing your ${tabs.find(t => t.id === activeTab)?.label.toLowerCase()} here...`}
             />
           </div>

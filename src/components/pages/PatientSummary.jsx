@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 
 
+import { api } from "../../services/api";
+
 const mockPatients = {
   p001: {
     id: "p001",
@@ -69,6 +71,16 @@ export default function PatientSummary() {
     );
   }
 
+  const handleDownloadPDF = async () => {
+    try {
+      const sessionId = patient?.id || id || "consult_demo_8821";
+      await api.generatePdf(sessionId);
+      window.open(api.getDownloadPdfUrl(sessionId), "_blank");
+    } catch (e) {
+      window.open(api.getDownloadPdfUrl(patient?.id || id || "consult_demo_8821"), "_blank");
+    }
+  };
+
   return (
     <div className="p-8 max-w-5xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -85,7 +97,10 @@ export default function PatientSummary() {
           </h1>
         </div>
         <div className="flex items-center gap-2.5">
-          <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm">
+          <button
+            onClick={handleDownloadPDF}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors shadow-sm cursor-pointer"
+          >
             <Download className="w-4 h-4" />
             Download PDF
           </button>
